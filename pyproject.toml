@@ -1,0 +1,124 @@
+# Copyright (c) 2025 Synthesia Limited - All Rights Reserved
+#
+# Unauthorized copying of this file, via any medium is strictly prohibited.
+# Proprietary and confidential.
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synthesia-rnd-ditwo"
+dynamic = ["version"]
+
+
+authors = [{ name = "Walter Diaz Sanz" }]
+classifiers = ["Programming Language :: Python :: 3"]
+license = { text = "Copyrights (c) 2025 Synthesia Limited - All Rights Reserved." }
+readme = "README.md"
+
+requires-python = ">=3.12"
+
+dependencies = [
+  "deepspeed==0.14.5",
+  "imageio~=2.34",
+  "diffusers>=0.30.1,<0.31",
+  "easydict>=1.13",
+  "einops>=0.8.0",
+  "ftfy>=6.3.1",
+  "lpips==0.1.4",
+  "numpy",
+  "pydantic==2.6.4",
+  "python-extracontext>=1,<2",
+  "sentencepiece>=0.2.0",
+  "synthesia-datalib[torch]>=1.27.0,<2",
+  "synthesia-rnd-enactslurm>=0.19.1",
+  "synthesia-rnd-experiment-tracking[clearml,mlflow,tensorboard]>=2.6.7,<3.0",
+  "synthesia-rnd-ffmpeg>=1.9.1,<2",
+  "synthesia-rnd-ffmpeg-utils>=0.0.9",
+  "synthesia-rnd-image-scaling>=1,<2",
+  "synthesia-rnd-lvm-dataclasses[opencv]==9.2.1",
+  "synthesia-rnd-profiling>=0.1.2",
+  "synthesia-rnd-video-loader>=4,<5",
+  "synthesia-rnd-video-writer>=2,<3",
+  "tensorboard>=2.15.1",
+  "torch==2.6.0",
+  "tqdm==4.66.2",
+  "transformers>=4.39,<5",
+]
+
+[project.scripts]
+generate-training-yaml = "ditwo.dockerjob.generate_training_yaml:main"
+generate-benchmark-yaml = "ditwo.dockerjob.generate_benchmark_yaml:main"
+compare-models = "ditwo.scripts.compare_models:main"
+
+[tool.uv]
+dev-dependencies = [
+  "click~=8.1",
+  "pytest~=7.2",
+  "pre-commit>=3.2.0,<5.0",
+  "ruff~=0.8",
+  "build~=0.10",
+  "pyright>=1.1.390,<2.0"
+]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+index-strategy = "unsafe-best-match"
+
+[tool.setuptools.packages.find]
+where = ["src", "extern/wan"]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/helpers"]
+pythonpath = ["tests/helpers", "extern/wan"]
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+exclude = [
+  ".git",
+  ".hg",
+  ".mypy_cache",
+  ".idea",
+  ".vscode",
+  "__pycache__",
+  ".pytest_cache",
+  ".ipynb_checkpoints",
+  "build",
+  "dist",
+  "*/*.jpg",
+  "*/*.png",
+]
+line-length = 120
+
+[tool.ruff.lint]
+fixable = ["E", "F", "I", "N", "W"]
+ignore = ["E401"]
+select = [
+  # "D", # pydocstyle - uncomment if you want to use
+  "E", # pycodestyle
+  "F", # pyFlakes
+  "I", # isort
+  "N", # pep8-naming
+  "W", # Warning
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "datalib",
+  "lvm_dataclasses",
+  "profiling",
+  "video_loader",
+  "video_writer",
+]
+known-local-folder = ["ditwo"]
+required-imports = ["from __future__ import annotations"]
