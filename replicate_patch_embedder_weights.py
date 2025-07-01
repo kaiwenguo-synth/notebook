@@ -104,13 +104,15 @@ def _reshape_patch_embedder_weight(patch_weight: torch.Tensor) -> torch.Tensor:
 
 def main():
     pretrained_dit_state_dict_path = InputPath(
-        "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-14B-720P-bfloat16-notext.safetensors"
+        # "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-14B-720P-bfloat16-notext.safetensors"
+        "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-1.3B-multires-bfloat16-notext.safetensors"
     )
 
     state_dict = load_from_wan_weights(pretrained_dit_state_dict_path)
 
     modified_dit_state_dict_path = OutputPath(
-        "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-14B-720P-bfloat16-notext-extended-patch-embedder.safetensors"
+        # "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-14B-720P-bfloat16-notext-extended-patch-embedder.safetensors"
+        "s3://synthesia-rnd-prd-third-party-models/wan/dit/Wan2.1-I2V-1.3B-multires-bfloat16-notext-extended-patch-embedder.safetensors"
     )
 
     # Save the modified state dict to safetensors
