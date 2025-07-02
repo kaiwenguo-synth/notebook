@@ -147,6 +147,8 @@ def visualize_pca_components(
 
     plt.tight_layout()
     components_path = output_base / f"{output_prefix}_pca_components.png"
+    # Ensure the directory exists before saving
+    os.makedirs(str(components_path.parent.resolve()), exist_ok=True)
     plt.savefig(str(components_path.resolve()), dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -192,7 +194,9 @@ def visualize_pca_components(
             align_corners=False,
         )
 
-    video_path = output_base / f"{output_prefix}_pca_rgb.mp4"
+    video_path = output_base / f"{output_prefix}_pca_rgb_buffer_size_1.mp4"
+    # Ensure the directory exists before saving video
+    os.makedirs(str(video_path.parent.resolve()), exist_ok=True)
     save_video(pca_video_tensor, video_path, fps=30)
 
     print(f"PCA visualization saved and committed to {output_dir}:")
@@ -283,7 +287,23 @@ def main(
     control_frames = control_frames.unsqueeze(0).movedim(2, -1)  # (B=1, T, H, W, C=3)
 
     with torch.no_grad():
-        control_latents = vae_model.encode_for_inference(control_frames)  # (B=1, T_l, W_l, H_l, C_l)
+        first_control_frame = control_frames[:, :1]  # (B=1, T=1, H, W, C=3)
+        remaining_control_frames = control_frames.unfold(dimension=1, size=5, step=4).movedim(
+            -1, -4
+        )  # (B=1, S, T=5, H, W, C=3)
+        batch_size, seq_len = remaining_control_frames.shape[:2]
+        remaining_control_frames = remaining_control_frames.flatten(0, 1)  # (B*S, T=5, H, W, C=3)
+        first_control_latent = vae_model.encode_for_inference(first_control_frame)  # (B=1, W_l, H_l, C_l)
+        remaining_control_latents = []
+        assert batch_size == 1, "Batch size must be 1 for this implementation"
+        for i in range(seq_len):
+            remaining_control_latents.append(
+                vae_model.encode_for_inference(remaining_control_frames[i : i + 1])[:, -1:]
+            )  # (B=1, T=1, W_l, H_l, C_l)
+        remaining_control_latents = torch.cat(remaining_control_latents, dim=1)  # (B=1, T=S, W_l, H_l, C_l)
+        control_latents = torch.cat(
+            [first_control_latent, remaining_control_latents], dim=1
+        )  # (B=1, T=S+1, W_l, H_l, C_l)
 
     # Perform PCA analysis and visualization
     if visualize_pca:
