@@ -26,7 +26,7 @@ from ditwo.data.dataset import bbox_centers_from_skeletons, get_crop_or_pad_coor
 from ditwo.models.vae.wan import WanVAE
 from ditwo.configs.config_dataclasses import CropType, SkeletonRegion, WanVAEConfig
 from ditwo.utils.ffmpeg import save_video
-from ditwo.utils.misc import default_dtype, Size
+from ditwo.utils.misc import ceil_div, default_dtype, Size
 from ditwo.utils.skeleton.cpu_renderer import DWPoseCPURenderer
 from ditwo.utils.skeleton.io import load_safetensor_skeletons
 from ditwo.utils.skeleton.transforms import box_crop_skeletons, center_crop_skeletons, resize_skeletons
@@ -194,7 +194,7 @@ def visualize_pca_components(
             align_corners=False,
         )
 
-    video_path = output_base / f"{output_prefix}_pca_rgb_buffer_size_1.mp4"
+    video_path = output_base / f"{output_prefix}_pca_rgb_buffer_size_0.mp4"
     # Ensure the directory exists before saving video
     os.makedirs(str(video_path.parent.resolve()), exist_ok=True)
     save_video(pca_video_tensor, video_path, fps=30)
@@ -288,14 +288,25 @@ def main(
 
     with torch.no_grad():
         first_control_frame = control_frames[:, :1]  # (B=1, T=1, H, W, C=3)
-        remaining_control_frames = control_frames.unfold(dimension=1, size=5, step=4).movedim(
-            -1, -4
-        )  # (B=1, S, T=5, H, W, C=3)
-        batch_size, seq_len = remaining_control_frames.shape[:2]
-        remaining_control_frames = remaining_control_frames.flatten(0, 1)  # (B*S, T=5, H, W, C=3)
-        first_control_latent = vae_model.encode_for_inference(first_control_frame)  # (B=1, W_l, H_l, C_l)
-        remaining_control_latents = []
+        remaining_control_frames = control_frames[:, 1:]  # (B=1, T, H, W, C=3)
+        T = remaining_control_frames.shape[1]
+        padding_size = ceil_div(T, 4) * 4 - T
+        remaining_control_frames = torch.cat(
+            [remaining_control_frames, remaining_control_frames[:, -1:].repeat_interleave(padding_size, dim=1)], dim=1
+        )
+        batch_size = remaining_control_frames.shape[0]
         assert batch_size == 1, "Batch size must be 1 for this implementation"
+        remaining_control_frames = remaining_control_frames.view(
+            batch_size, -1, 4, *remaining_control_frames.shape[2:]
+        ).flatten(0, 1)  # (B*S, T=4, H, W, C=3)
+        remaining_control_frames = torch.nn.functional.pad(
+            remaining_control_frames, (0, 0, 0, 0, 0, 0, 1, 0), mode="constant", value=0
+        )  # (B*S, T=5, H, W, C=3) - add 1 frame of zero padding to the left
+
+        first_control_latent = vae_model.encode_for_inference(first_control_frame)  # (B=1, T=1, W_l, H_l, C_l)
+
+        seq_len = remaining_control_frames.shape[0]
+        remaining_control_latents = []
         for i in range(seq_len):
             remaining_control_latents.append(
                 vae_model.encode_for_inference(remaining_control_frames[i : i + 1])[:, -1:]
