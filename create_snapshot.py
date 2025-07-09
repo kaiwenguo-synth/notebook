@@ -1,24 +1,5 @@
 from metadata_db_client.db import DBManager
 
-db_manager = DBManager(db_type="trino")
-
-# Query to get unique dataset names from original table
-dataset_names_query = """
-SELECT DISTINCT dataset_name
-FROM delta.prd_consume_snapshots_gold.obt_video_clips
-WHERE dataset_name IS NOT NULL
-ORDER BY dataset_name
-"""
-
-print("=== UNIQUE DATASET NAMES IN ORIGINAL TABLE ===")
-dataset_names = db_manager.query_to_polars(query=dataset_names_query)
-print(dataset_names)
-
-if len(dataset_names) > 0:
-    names_list = dataset_names["dataset_name"].to_list()
-    print(f"\n📂 AVAILABLE DATASETS:")
-    print(f"   Total unique datasets: {len(names_list)}")
-    print(f"   Dataset names: {', '.join(names_list)}")
 
 query = """
 WITH
@@ -49,7 +30,7 @@ youtube_clips AS (
         clip_text_annotation_max_text_detection_rel_area AS max_text_detection_rel_area
     FROM delta.prd_consume_snapshots_gold.obt_video_clips
     WHERE
-        clip_type = 'foundation_human'
+        clip_type IN ('2d_twin_foundation_human', 'chatgpt_foundation_human', 'foundation_human')
 ),
 youtube_filtered_clips AS (
     SELECT *
@@ -289,7 +270,7 @@ all_clips AS (
     SELECT * FROM spa_test_suite
 )
 
-SELECT 
+SELECT
     dataset_name,
     COUNT(DISTINCT synthesia_id) AS total_videos,
     COUNT(*) AS total_clips,
@@ -303,6 +284,9 @@ WHERE dataset_name IS NOT NULL
 GROUP BY dataset_name
 ORDER BY dataset_name
 """
+
+
+db_manager = DBManager(db_type="trino")
 
 print("\n=== DATASET DURATION STATISTICS ===")
 results = db_manager.query_to_polars(query=query)
