@@ -30,7 +30,8 @@ youtube_clips AS (
         clip_text_annotation_max_text_detection_rel_area AS max_text_detection_rel_area
     FROM delta.prd_consume_snapshots_gold.obt_video_clips
     WHERE
-        clip_type IN ('2d_twin_foundation_human', 'chatgpt_foundation_human', 'foundation_human')
+        dataset_name IN ('youtube_human_activity_rml')
+        AND clip_type IN ('2d_twin_foundation_human', 'chatgpt_foundation_human', 'foundation_human')
 ),
 youtube_filtered_clips AS (
     SELECT *
