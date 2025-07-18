@@ -40,6 +40,7 @@ def visualize_pca_components(
     h_upsample=8,
     w_upsample=8,
     t_upsample=4,
+    continuous_vae_encoding=False,
 ):
     """
     Perform PCA on control latents and visualize first 3 components as RGB.
@@ -52,6 +53,7 @@ def visualize_pca_components(
         h_upsample: int, height upsampling factor for PCA video (default: 8)
         w_upsample: int, width upsampling factor for PCA video (default: 8)
         t_upsample: int, temporal upsampling factor for PCA video (default: 4)
+        continuous_vae_encoding: bool, whether continuous VAE encoding was used (affects video filename)
     """
     print(f"Control latents shape: {control_latents.shape}")
 
@@ -194,7 +196,10 @@ def visualize_pca_components(
             align_corners=False,
         )
 
-    video_path = output_base / f"{output_prefix}_pca_rgb_buffer_size_0.mp4"
+    if continuous_vae_encoding:
+        video_path = output_base / f"{output_prefix}_pca_rgb_continuous_vae_encoding.mp4"
+    else:
+        video_path = output_base / f"{output_prefix}_pca_rgb_buffer_size_0.mp4"
     # Ensure the directory exists before saving video
     os.makedirs(str(video_path.parent.resolve()), exist_ok=True)
     save_video(pca_video_tensor, video_path, fps=30)
@@ -203,7 +208,10 @@ def visualize_pca_components(
     if save_individual_frames:
         print(f"  - Individual frames: {output_base / f'{output_prefix}_pca_frames'}/ ({T_l} files)")
     print(f"  - Component analysis: {components_path}")
-    print(f"  - RGB video: {video_path} (upsampled {t_upsample}x temporal, {h_upsample}x{w_upsample} spatial)")
+    encoding_method = "continuous" if continuous_vae_encoding else "chunked"
+    print(
+        f"  - RGB video: {video_path} (upsampled {t_upsample}x temporal, {h_upsample}x{w_upsample} spatial, {encoding_method} encoding)"
+    )
 
     return pca, pca_spatial
 
@@ -223,6 +231,7 @@ def main(
     pca_h_upsample: int = 8,
     pca_w_upsample: int = 8,
     pca_t_upsample: int = 4,
+    continuous_vae_encoding: bool = False,
 ):
     # Handle device selection
     if device == "auto":
@@ -287,34 +296,44 @@ def main(
     control_frames = control_frames.unsqueeze(0).movedim(2, -1)  # (B=1, T, H, W, C=3)
 
     with torch.no_grad():
-        first_control_frame = control_frames[:, :1]  # (B=1, T=1, H, W, C=3)
-        remaining_control_frames = control_frames[:, 1:]  # (B=1, T, H, W, C=3)
-        T = remaining_control_frames.shape[1]
-        padding_size = ceil_div(T, 4) * 4 - T
-        remaining_control_frames = torch.cat(
-            [remaining_control_frames, remaining_control_frames[:, -1:].repeat_interleave(padding_size, dim=1)], dim=1
-        )
-        batch_size = remaining_control_frames.shape[0]
-        assert batch_size == 1, "Batch size must be 1 for this implementation"
-        remaining_control_frames = remaining_control_frames.view(
-            batch_size, -1, 4, *remaining_control_frames.shape[2:]
-        ).flatten(0, 1)  # (B*S, T=4, H, W, C=3)
-        remaining_control_frames = torch.nn.functional.pad(
-            remaining_control_frames, (0, 0, 0, 0, 0, 0, 1, 0), mode="constant", value=0
-        )  # (B*S, T=5, H, W, C=3) - add 1 frame of zero padding to the left
+        if continuous_vae_encoding:
+            # Continuous VAE encoding - process all frames at once
+            print("Using continuous VAE encoding")
+            control_latents = vae_model.encode_for_inference(control_frames)  # (B=1, T, W_l, H_l, C_l)
+            print(f"Control latents shape: {control_latents.shape}")
+        else:
+            # Chunked VAE encoding with zero padding every 4 frames
+            print("Using chunked VAE encoding with zero padding every 4 frames")
+            first_control_frame = control_frames[:, :1]  # (B=1, T=1, H, W, C=3)
+            remaining_control_frames = control_frames[:, 1:]  # (B=1, T, H, W, C=3)
+            T = remaining_control_frames.shape[1]
+            padding_size = ceil_div(T, 4) * 4 - T
+            remaining_control_frames = torch.cat(
+                [remaining_control_frames, remaining_control_frames[:, -1:].repeat_interleave(padding_size, dim=1)],
+                dim=1,
+            )
+            batch_size = remaining_control_frames.shape[0]
+            assert batch_size == 1, "Batch size must be 1 for this implementation"
+            remaining_control_frames = remaining_control_frames.view(
+                batch_size, -1, 4, *remaining_control_frames.shape[2:]
+            ).flatten(0, 1)  # (B*S, T=4, H, W, C=3)
+            remaining_control_frames = torch.nn.functional.pad(
+                remaining_control_frames, (0, 0, 0, 0, 0, 0, 1, 0), mode="constant", value=0
+            )  # (B*S, T=5, H, W, C=3) - add 1 frame of zero padding to the left
 
-        first_control_latent = vae_model.encode_for_inference(first_control_frame)  # (B=1, T=1, W_l, H_l, C_l)
+            first_control_latent = vae_model.encode_for_inference(first_control_frame)  # (B=1, T=1, W_l, H_l, C_l)
 
-        seq_len = remaining_control_frames.shape[0]
-        remaining_control_latents = []
-        for i in range(seq_len):
-            remaining_control_latents.append(
-                vae_model.encode_for_inference(remaining_control_frames[i : i + 1])[:, -1:]
-            )  # (B=1, T=1, W_l, H_l, C_l)
-        remaining_control_latents = torch.cat(remaining_control_latents, dim=1)  # (B=1, T=S, W_l, H_l, C_l)
-        control_latents = torch.cat(
-            [first_control_latent, remaining_control_latents], dim=1
-        )  # (B=1, T=S+1, W_l, H_l, C_l)
+            seq_len = remaining_control_frames.shape[0]
+            remaining_control_latents = []
+            for i in range(seq_len):
+                remaining_control_latents.append(
+                    vae_model.encode_for_inference(remaining_control_frames[i : i + 1])[:, -1:]
+                )  # (B=1, T=1, W_l, H_l, C_l)
+            remaining_control_latents = torch.cat(remaining_control_latents, dim=1)  # (B=1, T=S, W_l, H_l, C_l)
+            control_latents = torch.cat(
+                [first_control_latent, remaining_control_latents], dim=1
+            )  # (B=1, T=S+1, W_l, H_l, C_l)
+            print(f"Control latents shape: {control_latents.shape}")
 
     # Perform PCA analysis and visualization
     if visualize_pca:
@@ -326,6 +345,7 @@ def main(
             h_upsample=pca_h_upsample,
             w_upsample=pca_w_upsample,
             t_upsample=pca_t_upsample,
+            continuous_vae_encoding=continuous_vae_encoding,
         )
 
     if save_decoded_video:
@@ -392,6 +412,11 @@ if __name__ == "__main__":
         default="bfloat16",
         help="Data type for model inference",
     )
+    parser.add_argument(
+        "--continuous-vae-encoding",
+        action="store_true",
+        help="Use continuous VAE encoding for all frames, otherwise chunked with zero padding",
+    )
 
     # Input/Output arguments
     parser.add_argument("--motion-file", type=str, help="Path to input motion file (overrides default in script)")
@@ -422,4 +447,5 @@ if __name__ == "__main__":
         pca_h_upsample=args.pca_h_upsample,
         pca_w_upsample=args.pca_w_upsample,
         pca_t_upsample=args.pca_t_upsample,
+        continuous_vae_encoding=args.continuous_vae_encoding,
     )
