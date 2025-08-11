@@ -95,7 +95,12 @@ WITH
             CAST(NULL AS VARCHAR) AS hand_tracking_weka_path,
             CAST(NULL AS VARCHAR) AS eyelandmarks_weka_path,
             -- Dataset split
-            (CASE WHEN (FALSE) THEN 'test' ELSE 'train' END) AS split
+            (CASE WHEN (FALSE) THEN 'test' ELSE 'train' END) AS split,
+            -- Dense captioning
+            short_description,
+            dense_description_subject,
+            dense_description_scene,
+            dense_description_action
         FROM youtube_filtered_clips
         -- Sort to ensure that the test clips are included when the limit is applied
         ORDER BY
