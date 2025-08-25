@@ -19,7 +19,8 @@ WITH
             FORMAT('%dx%d', video_clips_video_width, video_clips_video_height) AS resolution,
             training_video_s3_path AS video_s3_path,
             skeleton_detection_landmarks_s3_path AS landmarks_s3_path,
-            CAST(NULL AS VARCHAR) AS audio_embedding_s3_path,
+            video_compact_audio_audio_s3_path AS audio_s3_path,
+            audio_fp_16_embedding_s3_path AS audio_embedding_s3_path,
             clip_annotation_average_person_width AS average_person_width,
             clip_annotation_average_person_height AS average_person_height,
             clip_annotation_camera_framing AS camera_framing,
@@ -77,6 +78,7 @@ WITH
             CAST(NULL AS VARCHAR) AS camera,
             -- S3 paths
             video_s3_path,
+            audio_s3_path,
             audio_embedding_s3_path,
             landmarks_s3_path,
             CAST(NULL AS VARCHAR) AS landmarks_3d_s3_path,
