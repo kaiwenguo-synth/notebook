@@ -18,17 +18,25 @@ WITH
             video_clips_frame_rate AS c_frame_rate,
             video_clips_video_width AS c_video_width,
             video_clips_video_height AS c_video_height,
+            FORMAT('%dx%d', video_clips_video_width, video_clips_video_height) AS resolution,
             training_video_s3_path AS video_s3_path,
             skeleton_detection_landmarks_s3_path AS landmarks_s3_path,
             video_compact_audio_audio_s3_path AS audio_s3_path,
             audio_fp_16_embedding_s3_path AS audio_embedding_s3_path,
+            clip_annotation_average_person_width AS average_person_width,
+            clip_annotation_average_person_height AS average_person_height,
             clip_annotation_camera_framing AS camera_framing,
             clip_annotation_dynamicity_hands AS dynamicity_hands,
             clip_annotation_dynamicity_head AS dynamicity_head,
             clip_annotation_frames_with_visible_hand_frac AS frames_with_visible_hand_frac,
+            overall_score AS clip_quality_score,
             technical_quality AS clip_technical_quality_score,
             aesthetic_quality AS clip_aesthetic_quality_score,
-            clip_text_annotation_frac_frames_with_text
+            clip_text_annotation_frac_frames_with_text AS frames_with_text_frac,
+            short_description,
+            dense_description_subject,
+            dense_description_scene,
+            dense_description_action
         FROM delta.prd_consume_snapshots_gold.obt_video_clips
     ),
     youtube_filtered_clips AS (
@@ -36,16 +44,20 @@ WITH
         FROM youtube_clips
         WHERE (
                 clip_type = 'foundation_human'
-                AND dynamicity_hands >= 0.33
-                AND dynamicity_head >= 0.33
+                AND c_duration_s >= 3.0
+                AND c_duration_s <= 7200.0
+                AND average_person_width >= 0.0
+                AND average_person_height >= 0.5
+                AND (dynamicity_hands >= 0.33 OR dynamicity_head >= 0.33)
                 AND frames_with_visible_hand_frac >= 0.1
-                AND camera_framing NOT IN ('face_only', 'other')
+                AND c_frame_rate IN ('30','30000/1001','29917/1000','29833/1000','60','2997/50','25','24000/1001')
+                AND (resolution IN ('3840x2160') OR dataset_name = 'youtube_4k_cc')
+                AND camera_framing IN ('chest_up','waist_up','full_body')
                 AND clip_aesthetic_quality_score >= 0.95
-                AND clip_text_annotation_frac_frames_with_text <= 0.0
-                AND (c_video_height = 2160 AND c_video_width = 3840) OR dataset_name = 'youtube_4k_cc'
+                AND frames_with_text_frac <= 0.0
         )
     ),
-    youtube_4k AS (
+    youtube AS (
         SELECT
             -- Clip metadata
             synthesia_id,
@@ -60,14 +72,40 @@ WITH
             c_video_width,
             c_video_height,
             camera_framing,
+            CAST(NULL AS VARCHAR) AS camera,
             -- S3 paths
             video_s3_path,
             audio_s3_path,
             audio_embedding_s3_path,
-            landmarks_s3_path
+            landmarks_s3_path,
+            CAST(NULL AS VARCHAR) AS landmarks_3d_s3_path,
+            CAST(NULL AS VARCHAR) AS calibration_s3_path,
+            CAST(NULL AS VARCHAR) AS hand_tracking_s3_path,
+            CAST(NULL AS VARCHAR) AS eyelandmarks_s3_path,
+            -- WEKA paths
+            CAST(NULL AS VARCHAR) AS video_weka_path,
+            CAST(NULL AS VARCHAR) AS landmarks_weka_path,
+            CAST(NULL AS VARCHAR) AS audio_embedding_weka_path,
+            CAST(NULL AS VARCHAR) AS landmarks_3d_weka_path,
+            CAST(NULL AS VARCHAR) AS calibration_weka_path,
+            CAST(NULL AS VARCHAR) AS hand_tracking_weka_path,
+            CAST(NULL AS VARCHAR) AS eyelandmarks_weka_path,
+            -- Dataset split
+            (CASE WHEN (FALSE) THEN 'test' ELSE 'train' END) AS split,
+            -- Dense captioning
+            short_description,
+            dense_description_subject,
+            dense_description_scene,
+            dense_description_action
         FROM youtube_filtered_clips
+        -- Sort to ensure that the test clips are included when the limit is applied
+        ORDER BY
+            CASE split
+                WHEN 'test' THEN 1
+                WHEN 'train' THEN 2
+            END
     )
-    SELECT * from youtube_4k
+    SELECT * FROM youtube
 """
 
 
