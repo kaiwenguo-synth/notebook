@@ -53,8 +53,12 @@ WITH
                 AND c_frame_rate IN ('30','30000/1001','29917/1000','29833/1000','60','2997/50','25','24000/1001')
                 AND (resolution IN ('3840x2160') OR dataset_name = 'youtube_4k_cc')
                 AND camera_framing IN ('chest_up','waist_up','full_body')
-                AND clip_aesthetic_quality_score >= 0.95
+                AND clip_aesthetic_quality_score >= 0.8
                 AND frames_with_text_frac <= 0.0
+                AND short_description IS NOT NULL
+                AND dense_description_subject IS NOT NULL
+                AND dense_description_scene IS NOT NULL
+                AND dense_description_action IS NOT NULL
         )
     ),
     youtube AS (
