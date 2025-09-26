@@ -50,7 +50,7 @@ WITH
                 AND average_person_height >= 0.5
                 AND (dynamicity_hands >= 0.33 OR dynamicity_head >= 0.33)
                 AND frames_with_visible_hand_frac >= 0.1
-                AND c_frame_rate IN ('30','30000/1001','29917/1000','29833/1000','60','2997/50','25','24000/1001')
+                AND c_frame_rate IN ('30','30000/1001','29917/1000','29833/1000','60','2997/50')
                 AND (resolution IN ('3840x2160') OR dataset_name = 'youtube_4k_cc')
                 AND camera_framing IN ('chest_up','waist_up','full_body')
                 AND clip_aesthetic_quality_score >= 0.8
