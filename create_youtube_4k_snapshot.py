@@ -15,7 +15,7 @@ WITH
             video_clips_start_frame AS c_start_frame,
             video_clips_end_frame AS c_end_frame,
             video_clips_duration_s AS c_duration_s,
-            video_clips_frame_rate AS c_frame_rate,
+            video_metadata_approx_avg_frame_rate AS c_frame_rate,
             video_clips_video_width AS c_video_width,
             video_clips_video_height AS c_video_height,
             FORMAT('%dx%d', video_clips_video_width, video_clips_video_height) AS resolution,
@@ -50,7 +50,7 @@ WITH
                 AND average_person_height >= 0.5
                 AND (dynamicity_hands >= 0.33 OR dynamicity_head >= 0.33)
                 AND frames_with_visible_hand_frac >= 0.1
-                AND c_frame_rate IN ('30','30000/1001','29917/1000','29833/1000','60','2997/50')
+                AND c_frame_rate >= 29 AND c_frame_rate <= 61
                 AND (resolution IN ('3840x2160') OR dataset_name = 'youtube_4k_cc')
                 AND camera_framing IN ('chest_up','waist_up','full_body')
                 AND clip_aesthetic_quality_score >= 0.8
