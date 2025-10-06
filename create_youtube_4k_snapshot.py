@@ -32,7 +32,7 @@ WITH
             overall_score AS clip_quality_score,
             technical_quality AS clip_technical_quality_score,
             aesthetic_quality AS clip_aesthetic_quality_score,
-            clip_text_annotation_frac_frames_with_text AS frames_with_text_frac,
+            clip_text_annotation_avg_text_detection_rel_area AS avg_text_detection_rel_area,
             short_description,
             dense_description_subject,
             dense_description_scene,
@@ -54,7 +54,7 @@ WITH
                 AND (resolution IN ('3840x2160') OR dataset_name = 'youtube_4k_cc')
                 AND camera_framing IN ('chest_up','waist_up','full_body')
                 AND clip_aesthetic_quality_score >= 0.8
-                AND frames_with_text_frac <= 0.0
+                AND avg_text_detection_rel_area <= 0.05
                 AND short_description IS NOT NULL
                 AND dense_description_subject IS NOT NULL
                 AND dense_description_scene IS NOT NULL
